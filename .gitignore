@@ -1,0 +1,21 @@
+@"
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Salidas de build
+bin/
+obj/
+Debug/
+Release/
+
+# Otros
+TestResult*/
+*.nupkg
+*.log
+
+Migrations/
+"@ | Out-File -Encoding utf8 .gitignore
