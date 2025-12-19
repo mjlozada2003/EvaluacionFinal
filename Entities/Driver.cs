@@ -24,7 +24,5 @@ namespace ProyectoFinalTecWeb.Entities
         public DateTime? RefreshTokenRevokedAt { get; set; }
         public string? CurrentJwtId { get; set; }
 
-        public string? PasswordResetToken { get; set; }
-        public DateTime? ResetTokenCreatedAt { get; set; }
     }
 }
