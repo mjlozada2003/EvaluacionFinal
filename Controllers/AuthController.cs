@@ -54,7 +54,7 @@ namespace ProyectoFinalTecWeb.Controllers
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
         {
             var (ok, token) = await _service.ForgotPasswordAsync(dto);
-            if (!ok) return BadRequest("Email no encontrado");
+            if (!ok) return BadRequest(new { message = "El correo no está registrado" });
 
             return Ok(new { token });
         }
@@ -63,10 +63,10 @@ namespace ProyectoFinalTecWeb.Controllers
         [HttpPost("reset-password")]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
         {
-            var result = await _service.ResetPasswordAsync(dto);
-            if (!result) return BadRequest("Token inválido o expirado (máximo 15 min)");
+            var ok = await _service.ResetPasswordAsync(dto);
+            if (!ok) return BadRequest(new { message = "Token inválido o expirado (15 min máx)" });
 
-            return Ok("Contraseña actualizada con éxito");
+            return Ok(new { message = "Contraseña actualizada correctamente" });
         }
 
     }
