@@ -298,7 +298,30 @@ namespace ProyectoFinalTecWeb.Services
             return (true, tokenString);
         }
 
-        
+        public async Task<bool> ResetPasswordAsync(ResetPasswordDto dto)
+        {
+
+            var driver = (await _drivers.GetAll()).FirstOrDefault(d => d.PasswordResetToken == dto.Token);
+            var passenger = (await _passengers.GetAll()).FirstOrDefault(p => p.PasswordResetToken == dto.Token);
+
+            dynamic? user = (dynamic?)driver ?? passenger;
+
+            if (user == null) return false;
+
+            //Validar tiempo (15 minutos max)
+            var timeElapsed = DateTime.UtcNow - user.ResetTokenCreatedAt;
+            if (timeElapsed.TotalMinutes > 15) return false;
+
+            // 3. Hashear y actualizar password
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+            user.PasswordResetToken = null;
+            user.ResetTokenCreatedAt = null;
+
+            if (user is Driver) await _drivers.Update(user);
+            else await _passengers.Update(user);
+
+            return true;
+        }
 
     }
 }
