@@ -275,5 +275,30 @@ namespace ProyectoFinalTecWeb.Services
             var bytes = RandomNumberGenerator.GetBytes(64);
             return Base64UrlEncoder.Encode(bytes);
         }
+
+        public async Task<(bool ok, string token)> ForgotPasswordAsync(ForgotPasswordDto dto)
+        {
+            //Buscar en Drivers o Passengers
+            dynamic? user = await _drivers.GetByEmailAddress(dto.Email);
+            user ??= await _passengers.GetByEmailAddress(dto.Email);
+
+            if (user == null) return (false, string.Empty);
+
+            //Generar token: Minutos transcurridos del día
+            var now = DateTime.Now;
+            int minutesToken = (now.Hour * 60) + now.Minute;
+            string tokenString = minutesToken.ToString();
+
+            user.PasswordResetToken = tokenString;
+            user.ResetTokenCreatedAt = DateTime.UtcNow;
+
+            if (user is Driver) await _drivers.Update(user);
+            else await _passengers.Update(user);
+
+            return (true, tokenString);
+        }
+
+        
+
     }
 }
