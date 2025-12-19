@@ -59,7 +59,15 @@ namespace ProyectoFinalTecWeb.Controllers
             return Ok(new { token });
         }
 
-        
+        //POST : api/auth/reset-password
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            var result = await _service.ResetPasswordAsync(dto);
+            if (!result) return BadRequest("Token inválido o expirado (máximo 15 min)");
+
+            return Ok("Contraseña actualizada con éxito");
+        }
 
     }
 }

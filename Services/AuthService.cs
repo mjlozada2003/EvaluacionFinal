@@ -312,7 +312,7 @@ namespace ProyectoFinalTecWeb.Services
             var timeElapsed = DateTime.UtcNow - user.ResetTokenCreatedAt;
             if (timeElapsed.TotalMinutes > 15) return false;
 
-            // 3. Hashear y actualizar password
+            //Hashear y actualizar password
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
             user.PasswordResetToken = null;
             user.ResetTokenCreatedAt = null;
