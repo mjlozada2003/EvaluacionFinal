@@ -1,11 +1,11 @@
-﻿using ProyectoFinalTecWeb.Entities.Dtos.Auth;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using ProyectoFinalTecWeb.Entities;
+using ProyectoFinalTecWeb.Entities.Dtos.Auth;
 using ProyectoFinalTecWeb.Entities.Dtos.DriverDto;
 using ProyectoFinalTecWeb.Entities.Dtos.PassengerDto;
 using ProyectoFinalTecWeb.Repositories;
-
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
-using ProyectoFinalTecWeb.Entities;
+using System.Collections.Concurrent;
 using System.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -19,6 +19,7 @@ namespace ProyectoFinalTecWeb.Services
         private readonly IDriverRepository _drivers;
         private readonly IPassengerRepository _passengers;
         private readonly IConfiguration _configuration;
+        private static readonly ConcurrentDictionary<string, PasswordResetInfo> _resetTokens = new();
 
         public AuthService(IDriverRepository drivers, IPassengerRepository passengers, IConfiguration configuration)
         {
@@ -278,22 +279,24 @@ namespace ProyectoFinalTecWeb.Services
 
         public async Task<(bool ok, string token)> ForgotPasswordAsync(ForgotPasswordDto dto)
         {
-            //Buscar en Drivers o Passengers
-            dynamic? user = await _drivers.GetByEmailAddress(dto.Email);
-            user ??= await _passengers.GetByEmailAddress(dto.Email);
+         
+            var driver = await _drivers.GetByEmailAddress(dto.Email);
+            var passenger = await _passengers.GetByEmailAddress(dto.Email);
 
-            if (user == null) return (false, string.Empty);
+            if (driver == null && passenger == null) return (false, string.Empty);
 
             //Generar token: Minutos transcurridos del día
             var now = DateTime.Now;
             int minutesToken = (now.Hour * 60) + now.Minute;
             string tokenString = minutesToken.ToString();
 
-            user.PasswordResetToken = tokenString;
-            user.ResetTokenCreatedAt = DateTime.UtcNow;
+            var resetInfo = new PasswordResetInfo
+            {
+                Email = dto.Email,
+                CreatedAt = DateTime.UtcNow
+            };
 
-            if (user is Driver) await _drivers.Update(user);
-            else await _passengers.Update(user);
+            _resetTokens[tokenString] = resetInfo;
 
             return (true, tokenString);
         }
@@ -301,24 +304,37 @@ namespace ProyectoFinalTecWeb.Services
         public async Task<bool> ResetPasswordAsync(ResetPasswordDto dto)
         {
 
-            var driver = (await _drivers.GetAll()).FirstOrDefault(d => d.PasswordResetToken == dto.Token);
-            var passenger = (await _passengers.GetAll()).FirstOrDefault(p => p.PasswordResetToken == dto.Token);
+            if (!_resetTokens.TryGetValue(dto.Token, out var info))
+                return false; 
 
-            dynamic? user = (dynamic?)driver ?? passenger;
+            //Validar tiempo: máximo 15 minutos
+            var timeElapsed = DateTime.UtcNow - info.CreatedAt;
+            if (timeElapsed.TotalMinutes > 15)
+            {
+                _resetTokens.TryRemove(dto.Token, out _);
+                return false;
+            }
 
-            if (user == null) return false;
+            //Buscar al usuario por el email guardado en el token
+            var driver = await _drivers.GetByEmailAddress(info.Email);
+            var passenger = await _passengers.GetByEmailAddress(info.Email);
 
-            //Validar tiempo (15 minutos max)
-            var timeElapsed = DateTime.UtcNow - user.ResetTokenCreatedAt;
-            if (timeElapsed.TotalMinutes > 15) return false;
+            string newHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
 
-            //Hashear y actualizar password
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
-            user.PasswordResetToken = null;
-            user.ResetTokenCreatedAt = null;
+            //Actualizar password 
+            if (driver != null)
+            {
+                driver.PasswordHash = newHash;
+                await _drivers.Update(driver);
+            }
+            else if (passenger != null)
+            {
+                passenger.PasswordHash = newHash;
+                await _passengers.Update(passenger);
+            }
+            else return false;
 
-            if (user is Driver) await _drivers.Update(user);
-            else await _passengers.Update(user);
+            _resetTokens.TryRemove(dto.Token, out _);
 
             return true;
         }
